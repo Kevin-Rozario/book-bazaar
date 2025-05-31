@@ -51,6 +51,7 @@ model User {
   email                        String    @unique
   userName                     String    @unique
   fullName                     String
+  password                     String
   phone                        String?
   isEmailVerified              Boolean   @default(false)
   role                         Role      @default(USER)
@@ -75,8 +76,6 @@ model User {
 model Address {
   id           String   @id @default(uuid())
   userId       String
-  fullName     String
-  phone        String
   addressLine1 String
   addressLine2 String?
   city         String
