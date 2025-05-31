@@ -1,0 +1,243 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum BookFormat {
+  AUDIO_BOOK
+  E_BOOK
+  HARD_COVER
+  PAPER_BACK
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  PARTIAL_REFUND
+}
+
+enum PaymentMethod {
+  RAZORPAY
+  COD
+  WALLET
+}
+
+model User {
+  id                           String    @id @default(uuid())
+  email                        String    @unique
+  userName                     String    @unique
+  fullName                     String
+  phone                        String?
+  isEmailVerified              Boolean   @default(false)
+  role                         Role      @default(USER)
+  emailVerificationToken       String?
+  emailVerificationTokenExpiry DateTime?
+  forgotPasswordToken          String?
+  forgotPasswordTokenExpiry    DateTime?
+  refreshToken                 String?
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+
+  // Relationships
+  apiKey    ApiKey?
+  cart      Cart?
+  orders    Order[]
+  reviews   Review[]
+  addresses Address[]
+
+  @@map("users")
+}
+
+model Address {
+  id           String   @id @default(uuid())
+  userId       String
+  fullName     String
+  phone        String
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  pincode      String
+  country      String   @default("India")
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relationships
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@map("addresses")
+}
+
+model ApiKey {
+  apiId     String   @id @default(uuid())
+  userId    String   @unique
+  apiKey    String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+model Book {
+  bookId      String     @id @default(uuid())
+  title       String
+  description String
+  author      String
+  genre       String
+  series      String?
+  publisher   String
+  format      BookFormat @default(HARD_COVER)
+  price       Float
+  discount    Float?     @default(0) // Discount percentage
+  stock       Int        @default(0)
+  isbn        String?    @unique
+  imageUrl    String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relationships
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+  reviews    Review[]
+
+  @@map("books")
+}
+
+model Review {
+  reviewId      String   @id @default(uuid())
+  reviewContent String
+  rating        Int
+  userId        String
+  bookId        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [bookId], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@map("reviews")
+}
+
+model Order {
+  orderId        String      @id @default(uuid())
+  userId         String
+  addressId      String
+  status         OrderStatus @default(PENDING)
+  totalAmount    Float
+  discountAmount Float?      @default(0)
+  shippingAmount Float?      @default(0)
+  taxAmount      Float?      @default(0)
+  finalAmount    Float // totalAmount - discountAmount + shippingAmount + taxAmount
+  orderNumber    String      @unique @default(cuid()) // Human readable order number
+  notes          String? // Customer notes
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  // Relationships
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address    Address     @relation(fields: [addressId], references: [id])
+  orderItems OrderItem[]
+  payments   Payment[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String @id @default(uuid())
+  orderId    String
+  bookId     String
+  quantity   Int    @default(1)
+  unitPrice  Float // Price at the time of order
+  totalPrice Float // unitPrice * quantity
+  discount   Float? @default(0)
+
+  // Relationships
+  order Order @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+  book  Book  @relation(fields: [bookId], references: [bookId], onDelete: Cascade)
+
+  @@unique([orderId, bookId])
+  @@map("order_items")
+}
+
+model Payment {
+  paymentId         String        @id @default(uuid())
+  orderId           String
+  razorpayOrderId   String?       @unique // Razorpay order ID
+  razorpayPaymentId String?       @unique // Razorpay payment ID
+  razorpaySignature String? // Razorpay signature for verification
+  amount            Float
+  currency          String        @default("INR")
+  status            PaymentStatus @default(PENDING)
+  method            PaymentMethod @default(RAZORPAY)
+  failureReason     String? // Store failure reason if payment fails
+  refundId          String? // Razorpay refund ID if refunded
+  refundAmount      Float? // Amount refunded
+  gatewayResponse   Json? // Store complete gateway response
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  // Relationships
+  order Order @relation(fields: [orderId], references: [orderId], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Cart {
+  cartId    String   @id @default(uuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relationships
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cartItems CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id       String @id @default(uuid())
+  cartId   String
+  bookId   String
+  quantity Int    @default(1)
+
+  // Relationships
+  cart Cart @relation(fields: [cartId], references: [cartId], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [bookId], onDelete: Cascade)
+
+  @@unique([cartId, bookId])
+  @@map("cart_items")
+}
