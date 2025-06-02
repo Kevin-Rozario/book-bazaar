@@ -81,7 +81,7 @@ model Address {
   city         String
   state        String
   pincode      String
-  country      String   @default("India")
+  country      String   @default("india")
   isDefault    Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

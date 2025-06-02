@@ -5,6 +5,7 @@ import db from "../config/db.config.js";
 import {
   sendEmail,
   emailVerificationMailGenContent,
+  passwordResetMailGenContent,
 } from "../utils/sendEmail.js";
 import { hashPassword, comparePassword } from "../utils/hashPassword.util.js";
 import { generateTemporaryToken } from "../utils/generateToken.util.js";
@@ -27,7 +28,7 @@ export const register = asyncHandler(async (req, res) => {
     city,
     state,
     pincode,
-    country = "India",
+    country = "india",
     phone,
   } = req.body;
 
@@ -68,11 +69,12 @@ export const register = asyncHandler(async (req, res) => {
 
   try {
     createdUser = await db.$transaction(async (prisma) => {
+      // Create new user
       const newUser = await prisma.user.create({
         data: {
-          email,
-          userName,
-          fullName,
+          email: email.trim().toLowerCase(),
+          userName: userName.trim().toLowerCase(),
+          fullName: fullName.trim(),
           password: hashedPassword,
           phone,
           apiKey: {
@@ -83,12 +85,12 @@ export const register = asyncHandler(async (req, res) => {
           },
           addresses: {
             create: {
-              addressLine1,
-              addressLine2,
-              city,
-              state,
+              addressLine1: addressLine1.trim(),
+              addressLine2: addressLine2?.trim() || "",
+              city: city.trim(),
+              state: state.trim(),
               pincode,
-              country,
+              country: country.trim(),
               isDefault: true,
             },
           },
@@ -218,7 +220,53 @@ export const resendVerificationEmail = asyncHandler(async (req, res) => {
     return res.status(400).json(new ApiError(400, "Email is required"));
   }
 
-  
+  const user = await db.user.findUnique({
+    where: { email },
+  });
+
+  if (!user) {
+    return res.status(400).json(new ApiError(400, "User not found"));
+  }
+
+  if (user.isEmailVerified) {
+    return res.status(400).json(new ApiError(400, "Email already verified"));
+  }
+
+  const { token, tokenExpiry } = generateTemporaryToken();
+
+  await db.user.update({
+    where: { id: user.id },
+    data: {
+      emailVerificationToken: token,
+      emailVerificationTokenExpiry: tokenExpiry,
+    },
+  });
+
+  const mailOptions = {
+    email,
+    subject: "Book Bazaar - Email Verification",
+    mailGenContent: emailVerificationMailGenContent({
+      userName: user.userName,
+      verificationUrl: `${process.env.APP_URL}/verify-email/${token}`,
+    }),
+  };
+
+  // Send the email
+  const emailStatus = await sendEmail(mailOptions);
+
+  if (!emailStatus) {
+    console.error("Email sending failed");
+    return res
+      .status(400)
+      .json(new ApiError(400, "Verification email not sent"));
+  }
+
+  // Success response
+  return res.status(200).json(
+    new ApiResponse(200, {
+      message: "Verification email sent successfully",
+    }),
+  );
 });
 
 // login user
@@ -231,7 +279,7 @@ export const login = asyncHandler(async (req, res) => {
 
   const user = await db.user.findUnique({
     where: {
-      email,
+      email: email.trim().toLowerCase(),
     },
   });
 
@@ -441,10 +489,111 @@ export const getProfile = asyncHandler(async (req, res) => {
 });
 
 // forgot password
-export const forgotPassword = asyncHandler(async (req, res) => {});
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json(new ApiError(400, "Email is required"));
+  }
+
+  const user = await db.user.findUnique({
+    where: { email: email.trim().toLowerCase() },
+  });
+
+  if (!user) {
+    return res.status(200).json(
+      new ApiResponse(200, {
+        message: "If email exists, password reset email will be sent",
+      }),
+    );
+  }
+
+  const { token, tokenExpiry } = generateTemporaryToken();
+
+  await db.user.update({
+    where: { id: user.id },
+    data: {
+      forgotPasswordToken: token,
+      forgotPasswordTokenExpiry: tokenExpiry,
+    },
+  });
+
+  const options = {
+    email: user.email,
+    subject: "Book Bazaar - Password Reset Request",
+    mailGenContent: passwordResetMailGenContent({
+      userName: user.fullName,
+      passwordResetUrl: `${process.env.APP_URL}/reset-password/${token}`,
+    }),
+  };
+
+  const emailStatus = await sendEmail(options);
+  if (!emailStatus) {
+    console.error("Failed to send password reset email:", emailStatus);
+    return res
+      .status(500)
+      .json(new ApiError(500, "Failed to send password reset email"));
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      message: "Password reset email sent successfully!",
+    }),
+  );
+});
 
 // reset password
-export const resetPassword = asyncHandler(async (req, res) => {});
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
+
+  if (!token || !password) {
+    return res
+      .status(400)
+      .json(new ApiError(400, "Token and password are required"));
+  }
+
+  const user = await db.user.findFirst({
+    where: {
+      forgotPasswordToken: token,
+    },
+  });
+
+  if (!user) {
+    return res.status(400).json(new ApiError(400, "Invalid or expired token"));
+  }
+
+  if (
+    !user.forgotPasswordTokenExpiry ||
+    new Date() > user.forgotPasswordTokenExpiry
+  ) {
+    await db.user.update({
+      where: { id: user.id },
+      data: {
+        forgotPasswordToken: null,
+        forgotPasswordTokenExpiry: null,
+      },
+    });
+    return res.status(400).json(new ApiError(400, "Token has expired"));
+  }
+
+  const hashedPassword = await hashPassword(password);
+
+  await db.user.update({
+    where: { id: user.id },
+    data: {
+      password: hashedPassword,
+      forgotPasswordToken: null,
+      forgotPasswordTokenExpiry: null,
+    },
+  });
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      message: "Password reset successfully!",
+    }),
+  );
+});
 
 // renew refresh token
 export const renewRefreshToken = asyncHandler(async (req, res) => {
