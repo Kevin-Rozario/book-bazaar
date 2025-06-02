@@ -55,7 +55,7 @@ model User {
   phone                        String?
   isEmailVerified              Boolean   @default(false)
   role                         Role      @default(USER)
-  emailVerificationToken       String?
+  emailVerificationToken       String?   @unique
   emailVerificationTokenExpiry DateTime?
   forgotPasswordToken          String?
   forgotPasswordTokenExpiry    DateTime?
@@ -117,7 +117,7 @@ model Book {
   publisher   String
   format      BookFormat @default(HARD_COVER)
   price       Float
-  discount    Float?     @default(0) // Discount percentage
+  discount    Float?     @default(0)
   stock       Int        @default(0)
   isbn        String?    @unique
   imageUrl    String?
