@@ -69,6 +69,7 @@ model User {
   orders    Order[]
   reviews   Review[]
   addresses Address[]
+  Book      Book[]
 
   @@map("users")
 }
@@ -109,6 +110,8 @@ model ApiKey {
 
 model Book {
   bookId      String     @id @default(uuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   title       String
   description String
   author      String

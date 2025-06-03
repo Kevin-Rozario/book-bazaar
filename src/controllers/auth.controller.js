@@ -42,9 +42,7 @@ export const register = asyncHandler(async (req, res) => {
     !state ||
     !pincode
   ) {
-    return res
-      .status(400)
-      .json(new ApiError(400, "All required fields are necessary"));
+    throw new ApiError(400, "All fields are required");
   }
 
   const existingUser = await db.user.findFirst({
@@ -55,10 +53,10 @@ export const register = asyncHandler(async (req, res) => {
 
   if (existingUser) {
     if (existingUser.email === email) {
-      return res.status(400).json(new ApiError(400, "Email already exists"));
+      throw new ApiError(400, "Email already exists");
     }
     if (existingUser.userName === userName) {
-      return res.status(400).json(new ApiError(400, "Username already exists"));
+      throw new ApiError(400, "Username already exists");
     }
   }
 
@@ -137,7 +135,7 @@ export const register = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error("Transaction failed:", error);
-    return res.status(500).json(new ApiError(500, "User registration failed"));
+    throw new ApiError(400, "User creation failed");
   }
 
   const mailOptions = {
@@ -152,9 +150,7 @@ export const register = asyncHandler(async (req, res) => {
   const emailStatus = await sendEmail(mailOptions);
   if (!emailStatus) {
     console.error("Email sending failed");
-    return res
-      .status(400)
-      .json(new ApiError(400, "Verification email not sent"));
+    throw new ApiError(500, "Email sending failed");
   }
 
   res.status(201).json(
@@ -177,7 +173,7 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   const { token } = req.params;
 
   if (!token) {
-    return res.status(400).json(new ApiError(400, "Token is required"));
+    throw new ApiError(400, "Token is required");
   }
 
   const user = await db.user.findFirst({
@@ -187,13 +183,11 @@ export const verifyEmail = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    return res
-      .status(400)
-      .json(new ApiError(400, "Invalid or already used token"));
+    throw new ApiError(400, "Invalid or expired token");
   }
 
   if (Date.now() > user.emailVerificationTokenExpiry) {
-    return res.status(400).json(new ApiError(400, "Token has expired"));
+    throw new ApiError(400, "Token has expired");
   }
 
   await db.user.update({
@@ -217,7 +211,7 @@ export const resendVerificationEmail = asyncHandler(async (req, res) => {
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json(new ApiError(400, "Email is required"));
+    throw new ApiError(400, "Email is required");
   }
 
   const user = await db.user.findUnique({
@@ -225,11 +219,11 @@ export const resendVerificationEmail = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    return res.status(400).json(new ApiError(400, "User not found"));
+    throw new ApiError(400, "User not found");
   }
 
   if (user.isEmailVerified) {
-    return res.status(400).json(new ApiError(400, "Email already verified"));
+    throw new ApiError(400, "Email already verified");
   }
 
   const { token, tokenExpiry } = generateTemporaryToken();
@@ -256,9 +250,7 @@ export const resendVerificationEmail = asyncHandler(async (req, res) => {
 
   if (!emailStatus) {
     console.error("Email sending failed");
-    return res
-      .status(400)
-      .json(new ApiError(400, "Verification email not sent"));
+    throw new ApiError(500, "Email sending failed");
   }
 
   // Success response
@@ -274,7 +266,7 @@ export const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json(new ApiError(400, "All fields are required"));
+    throw new ApiError(400, "Email and password are required");
   }
 
   const user = await db.user.findUnique({
@@ -284,17 +276,17 @@ export const login = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    return res.status(400).json(new ApiError(400, "User not found"));
+    throw new ApiError(400, "User not found");
   }
 
   if (!user.isEmailVerified) {
-    return res.status(400).json(new ApiError(400, "Email not verified"));
+    throw new ApiError(400, "Email not verified");
   }
 
   const isPasswordValid = await comparePassword(password, user.password);
 
   if (!isPasswordValid) {
-    return res.status(400).json(new ApiError(400, "Invalid credentials"));
+    throw new ApiError(400, "Invalid password");
   }
 
   const accessToken = generateAccessToken({
@@ -363,7 +355,7 @@ export const logout = asyncHandler(async (req, res) => {
   const { id } = req.user;
 
   if (!id) {
-    return res.status(400).json(new ApiError(400, "User not found"));
+    throw new ApiError(400, "User not found");
   }
 
   await db.user.update({
@@ -396,7 +388,7 @@ export const rotateApiKey = asyncHandler(async (req, res) => {
   const { id } = req.user;
 
   if (!id) {
-    return res.status(400).json(new ApiError(400, "User not found"));
+    throw new ApiError(400, "User not found");
   }
 
   const currentApiKey = await db.apiKey.findFirst({
@@ -407,7 +399,7 @@ export const rotateApiKey = asyncHandler(async (req, res) => {
   });
 
   if (!currentApiKey) {
-    return res.status(400).json(new ApiError(400, "No active API key found"));
+    throw new ApiError(400, "No active API key found");
   }
 
   const newApiKey = generateApiKeyString();
@@ -444,7 +436,7 @@ export const getProfile = asyncHandler(async (req, res) => {
   const { id } = req.user;
 
   if (!id) {
-    return res.status(400).json(new ApiError(400, "User not found"));
+    throw new ApiError(400, "User not found");
   }
 
   const user = await db.user.findUnique({
@@ -481,7 +473,7 @@ export const getProfile = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    return res.status(400).json(new ApiError(400, "User not found"));
+    throw new ApiError(400, "User not found");
   }
 
   res.status(200).json(
@@ -500,7 +492,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json(new ApiError(400, "Email is required"));
+    throw new ApiError(400, "Email is required");
   }
 
   const user = await db.user.findUnique({
@@ -508,11 +500,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    return res.status(200).json(
-      new ApiResponse(200, {
-        message: "If email exists, password reset email will be sent",
-      }),
-    );
+    throw new ApiError(400, "User not found");
   }
 
   const { token, tokenExpiry } = generateTemporaryToken();
@@ -537,9 +525,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   const emailStatus = await sendEmail(options);
   if (!emailStatus) {
     console.error("Failed to send password reset email:", emailStatus);
-    return res
-      .status(500)
-      .json(new ApiError(500, "Failed to send password reset email"));
+    throw new ApiError(500, "Failed to send password reset email");
   }
 
   return res.status(200).json(
@@ -555,9 +541,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
   const { password } = req.body;
 
   if (!token || !password) {
-    return res
-      .status(400)
-      .json(new ApiError(400, "Token and password are required"));
+    throw new ApiError(400, "Token and password are required");
   }
 
   const user = await db.user.findFirst({
@@ -567,7 +551,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
   });
 
   if (!user) {
-    return res.status(400).json(new ApiError(400, "Invalid or expired token"));
+    throw new ApiError(400, "User not found");
   }
 
   if (
@@ -581,7 +565,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
         forgotPasswordTokenExpiry: null,
       },
     });
-    return res.status(400).json(new ApiError(400, "Token has expired"));
+    throw new ApiError(400, "Token has expired");
   }
 
   const hashedPassword = await hashPassword(password);
@@ -607,7 +591,7 @@ export const renewRefreshToken = asyncHandler(async (req, res) => {
   const { refreshToken } = req.cookies;
 
   if (!refreshToken) {
-    return res.status(400).json(new ApiError(400, "Refresh token not found"));
+    throw new ApiError(401, "Refresh token not found");
   }
 
   let decodedToken;
@@ -617,9 +601,7 @@ export const renewRefreshToken = asyncHandler(async (req, res) => {
       tokenType: "refresh",
     });
   } catch (error) {
-    return res
-      .status(401)
-      .json(new ApiError(401, "Invalid or expired refresh token"));
+    throw new ApiError(401, "Invalid refresh token");
   }
 
   const user = await db.user.findUnique({
@@ -629,7 +611,7 @@ export const renewRefreshToken = asyncHandler(async (req, res) => {
   });
 
   if (!user || user.refreshToken !== refreshToken) {
-    return res.status(401).json(new ApiError(401, "Invalid refresh token"));
+    throw new ApiError(401, "Invalid refresh token");
   }
 
   const newAccessToken = generateAccessToken({

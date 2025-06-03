@@ -6,7 +6,7 @@ export const authMiddleware = (req, res, next) => {
   const apiKey = req.headers["x-api-key"];
 
   if (!accessToken || !refreshToken || !apiKey) {
-    return res.status(401).json(new ApiError(401, "Unauthorized"));
+    throw new ApiError(401, "Access token or refresh token not found");
   }
 
   try {
@@ -16,12 +16,23 @@ export const authMiddleware = (req, res, next) => {
     });
 
     if (!decodedToken) {
-      return res.status(401).json(new ApiError(401, "Unauthorized"));
+      throw new ApiError(401, "Invalid or expired access token");
     }
+
     req.user = decodedToken;
     next();
   } catch (error) {
     console.error("Error verifying access token:", error);
-    return res.status(401).json(new ApiError(401, "Unauthorized"));
+    throw new ApiError(401, "Access token verification failed");
   }
+};
+
+export const adminCheck = (req, res, next) => {
+  const { role } = req.user;
+
+  if (role !== "ADMIN") {
+    throw new ApiError(403, "You are not authorized to perform this action");
+  }
+
+  next();
 };
