@@ -14,7 +14,7 @@ router.route("/").post(authMiddleware, adminCheck, createBook).get(getBooks);
 router
   .route("/:bookId")
   .get(getBookById)
-  .put(updateBookById)
-  .delete(deleteBookById);
+  .put(authMiddleware, adminCheck, updateBookById)
+  .delete(authMiddleware, adminCheck, deleteBookById);
 
 export default router;

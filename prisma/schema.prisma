@@ -182,8 +182,8 @@ model OrderItem {
   orderId    String
   bookId     String
   quantity   Int    @default(1)
-  unitPrice  Float // Price at the time of order
-  totalPrice Float // unitPrice * quantity
+  unitPrice  Float
+  totalPrice Float
   discount   Float? @default(0)
 
   // Relationships
@@ -197,17 +197,17 @@ model OrderItem {
 model Payment {
   paymentId         String        @id @default(uuid())
   orderId           String
-  razorpayOrderId   String?       @unique // Razorpay order ID
-  razorpayPaymentId String?       @unique // Razorpay payment ID
-  razorpaySignature String? // Razorpay signature for verification
+  razorpayOrderId   String?       @unique
+  razorpayPaymentId String?       @unique
+  razorpaySignature String?
   amount            Float
   currency          String        @default("INR")
   status            PaymentStatus @default(PENDING)
   method            PaymentMethod @default(RAZORPAY)
-  failureReason     String? // Store failure reason if payment fails
-  refundId          String? // Razorpay refund ID if refunded
-  refundAmount      Float? // Amount refunded
-  gatewayResponse   Json? // Store complete gateway response
+  failureReason     String?
+  refundId          String?
+  refundAmount      Float?
+  gatewayResponse   Json?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
