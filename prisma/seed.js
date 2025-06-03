@@ -2,7 +2,7 @@ import db from "../src/config/db.config.js";
 import { faker } from "@faker-js/faker";
 import { hashPassword } from "../src/utils/hashPassword.util.js";
 
-const NO_OF_RECORDS = 50;
+const NO_OF_RECORDS = 30;
 
 async function main() {
   const bookIds = [];

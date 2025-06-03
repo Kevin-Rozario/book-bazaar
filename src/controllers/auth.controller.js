@@ -13,7 +13,7 @@ import {
   generateAccessToken,
   generateRefreshToken,
   verifyJwtToken,
-} from "../utils/generateToken.util.js";
+} from "../utils/generateJwtTokens.js";
 import { generateApiKeyString } from "../utils/generateApiKey.util.js";
 
 // register user
@@ -309,12 +309,19 @@ export const login = asyncHandler(async (req, res) => {
     role: user.role,
   });
 
-  await db.user.update({
+  const updatedUser = await db.user.update({
     where: {
       id: user.id,
     },
     data: {
       refreshToken,
+    },
+    select: {
+      apiKey: {
+        select: {
+          apiKey: true,
+        },
+      },
     },
   });
 
@@ -333,7 +340,7 @@ export const login = asyncHandler(async (req, res) => {
       ...cookieOptions,
       maxAge: 1000 * 60 * 60 * 24, // 1 day
     })
-    .setHeader("X-Api-Key", user.apiKey.apiKey)
+    .setHeader("X-Api-Key", updatedUser.apiKey.apiKey)
     .status(200)
     .json(
       new ApiResponse(

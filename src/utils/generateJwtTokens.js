@@ -28,7 +28,7 @@ export const generateRefreshToken = (user) => {
   );
 };
 
-export const VerifyJwtToken = (options) => {
+export const verifyJwtToken = (options) => {
   if (!options.token) {
     return false;
   }

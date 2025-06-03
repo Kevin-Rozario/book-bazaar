@@ -1,5 +1,5 @@
 import Mailgen from "mailgen";
-import transporter from "./email.config.js";
+import transporter from "../config/email.config.js";
 
 const mailGenerator = new Mailgen({
   theme: "default",
